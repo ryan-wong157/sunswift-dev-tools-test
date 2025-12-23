@@ -1,2 +1,2 @@
 # Sunswift-dev-tools
-Development tools to streamline development and deployment for Sunswift SR8 High Level Software. This is a testing repo to test some ideas ans scripts before they go into the actual repo.
+Development tools to streamline development and deployment for Sunswift SR8 High Level Software. This is a testing repo to test some ideas and scripts before they go into the actual repo. I'm going to mimic the full SRP8 high level repo for now

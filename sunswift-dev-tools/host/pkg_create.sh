@@ -16,7 +16,7 @@ set -ueo pipefail
 #     config/
 #     launch/
 #     logs/
-#     Makefile # or CMakeLists.txt, haven't decided yet
+#     CMakeLists.txt
 #     README.md
 #
 # src -> all your .cpp files
@@ -25,11 +25,12 @@ set -ueo pipefail
 # launch -> containing one or more launch files
 # logs -> directory for node output logs
 # 
-# Usage:
+# Usage in directory you want to create pkg in:
+#   
 ###############################################################################
 
 
-### Helpers ------------------------------------------------------------
+### Helpers ==================================================================
 die() {
     echo -e "$*" >&2
     exit 1
@@ -42,6 +43,8 @@ cleanup() {
     [[ -d "$pkg_name" ]] && rm -rf "$pkg_name"
 }
 
+
+### Core functions ===========================================================
 template_readme() {
     cat > "$pkg_name"/README.md <<EOF
 # $pkg_name DDS Package
@@ -70,10 +73,8 @@ Written by \`Your name here\` | \`Your zID here\`
 EOF
 }
 
-### Core functions -----------------------------------------------------
 # Creates pkg given a name. No error handling
 create_pkg() {
-
     mkdir -p "$pkg_name"/{src,include,config,launch,logs}
     touch "$pkg_name"/{Makefile,README.md}
 
@@ -82,12 +83,31 @@ create_pkg() {
 }
 
 
-### Main function ------------------------------------------------------
+### Main function=============================================================
 main() {
-    # command line args check
-    if [[ $# -ne 1 ]]; then
-        die "ERR: Missing parameters\nUsage: $0 <package_name>"
-    fi
+    pkg_name=""
+    mode=""
+    # command line args handling
+    while [[ "$#" -ne 0 ]]; do
+        case "$1" in
+            -n|--name) 
+                pkg_name="$2"
+                shift 2
+                ;;
+            -i|--install)
+                mode="install"
+                shift
+                ;;
+            -d|--delete)
+                mode="delete"
+                shift
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                die "Usage: "
+                ;;
+        esac
+    done
 
     # global pkg_name
     pkg_name="$1"

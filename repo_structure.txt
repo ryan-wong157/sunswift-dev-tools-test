@@ -1,0 +1,41 @@
+# Temp Full Repo Direcotry Structure
+
+SRP8-130_EMBD-High_level/
+- README.md
+- STYLE_GUIDE.md
+- node_registry.json
+- any other things like dockerfiles etc.
+- sunswift-dev-tools/           # This is a sub-repository (git submodule)
+    - host/
+        - pkg_create.sh
+        - build.sh              # script which builds ALL packages, or a specific package (think colcon)
+    - target/
+        - ddsctl.sh             # command line interface tool for interacting with DDS nodes
+        - launch.sh             # unified launch system (could be python) - uses launch.conf
+    - uhhh more things later
+- src/
+    - msg_types/                # this very important directory stores all IDL files and their auto-generated C++ files + headers
+        - idl_files/
+        - msg_src/
+        - msg_include/
+    - libs/
+    - domain1_nodes/
+        - domain1_node1/
+            - src/
+            - include/
+            - config/
+            - launch/
+            - logs/
+            - CMakeLists.txt
+            - README.md
+        - domain2_node2/
+    - domain2_nodes/
+        - domain2_node1/
+        - domain2_node2/
+    - domain3_nodes/
+        - domain3_node1/
+- launch/
+    - launch.config             # could be json, basically a list of all nodes needed to be launched and their launch file locations
+    - launch2.config            # perhaps different launch config to test specific subsystem or something
+- build/                        # I'm thinking this could be a staging directory. To be baked directly into the fs
+    - binaries
