@@ -10,19 +10,19 @@
 # run this script from
 # 
 # <package_name>/
+#     build/
 #     src/
 #     include/
 #     config/
 #     launch/
-#     logs/
-#     CMakeLists.txt
+#     CMakelists.txt
 #     README.md
 #
+# build -> for CMakelists.txt to put artifacts and final binary
 # src -> all your .cpp files
 # include -> all your .hpp files
 # config -> json files (probably) for node configs + params + choice of launch file
 # launch -> containing one or more launch files
-# logs -> directory for node output logs
 # 
 # Usage in directory you want to create pkg in:
 #   
@@ -36,19 +36,38 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-cwd = Path.cwd()
+CWD = Path.cwd()
+# THIS ASSUMES THAT node_registry.json is 2 directories above this script and in the repo root...
+REPO_ROOT = Path(__file__).resolve().parents[2]
+NODE_REG_PATH = REPO_ROOT / "node_registry.json"
+
+
+### HELPERS =====================================================================================
+
+def fill_readme(path: Path) -> bool:
+    pass
+
+def fill_cmakelists(path: Path) -> bool:
+    pass
+
+def fill_launch(path: Path) -> bool:
+    pass
+
+def fill_config(path: Path) -> bool:
+    pass
+
 
 ### CORE LOGIC ==================================================================================
 
 def pkg_create(pkg_name: str) -> None:
-    """Creates directory based on structure in top comment if it doesn't already exist
+    """Creates directory based on structure in top comment if it doesn't already exist.
     Also registers it to node_registry.json
     
     Args:
         pkg_name (str): pkg_name passed in from CL args
     """
-    pkg_path = cwd / pkg_name
-    nested_dirs = ["src", "include", "config", "launch", "logs"]
+    pkg_path = CWD / pkg_name
+    nested_dirs = ["build", "src", "include", "config", "launch"]
     files = ["CMakelists.txt", "README.md"]
     
     # TODO: Check if package already exists in cwd
@@ -60,19 +79,38 @@ def pkg_create(pkg_name: str) -> None:
     for file in files:
         (pkg_path / file).touch()
         
-    # TODO: Register this package in node_registry.json
+    # TODO: Populate CMakeLists.txt, README.md and create launch and config templates
+
+    # TODO: Refactor this to a function?
+    data = json.loads(NODE_REG_PATH.read_text())
+    new_entry = {
+        "name": pkg_name,
+        "type": "rti_dds",
+        "path": str(pkg_path.relative_to(REPO_ROOT)),
+        "target": "qnx"
+    }
+    data["nodes"].append(new_entry)
+    
+    try:
+        NODE_REG_PATH.write_text(
+                json.dumps(data, indent=2, sort_keys=True) + "\n"
+            )
+    except IOError as e:
+        print(f"An error has occuredL {e}")
+
     print("Package: create success")
-    print(f"Package: {pkg_name} created at {pkg_path}")
+    print(f"Package: '{pkg_name}' created at '{pkg_path.relative_to(REPO_ROOT)}'")
+    print(f"Package: registered in node_registry")
 
 
 def pkg_delete(pkg_name: str) -> None:
-    """Deletes directory with pkg_name if it's in the CWD, and it's a Sunswift DDS pkg
+    """Deletes directory with pkg_name if it's in the cwd, and it's a Sunswift DDS pkg
     Also unregisters it from node_registry.json
      
     Args:
         pkg_name (str): pkg_name passed in from CL args
     """ 
-    pkg_path = cwd / pkg_name
+    pkg_path = CWD / pkg_name
     
     if not (pkg_path.exists() and pkg_path.is_dir()):
         print(f"Package with name: '{pkg_name}' not found in current directory")
@@ -117,6 +155,10 @@ def main():
     if not re.match(pattern, pkg_name):
         print("Invalid package name: must be in 'snake_case'")
         sys.exit(1)
+        
+    ### TODO: SANITY CHECK -> check node_registry.json exists and is in correct path. 
+    # check that script is run in repo
+    # warn if not in src/
     
     ### Logic based on flags
     if args.create:

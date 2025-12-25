@@ -21,11 +21,11 @@ SRP8-130_EMBD-High_level/
     - libs/
     - domain1_nodes/
         - domain1_node1/
+            - build/
             - src/
             - include/
             - config/
             - launch/
-            - logs/
             - CMakeLists.txt
             - README.md
         - domain2_node2/
