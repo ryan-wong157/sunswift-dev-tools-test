@@ -44,6 +44,10 @@ NODE_REG_PATH = REPO_ROOT / "node_registry.json"
 
 ### HELPERS =====================================================================================
 
+def die(msg: str) -> None:
+    print(msg)
+    sys.exit(1)
+
 def fill_readme(path: Path) -> bool:
     pass
 
@@ -61,32 +65,38 @@ def fill_config(path: Path) -> bool:
 
 def pkg_create(pkg_name: str) -> None:
     """Creates directory based on structure in top comment if it doesn't already exist.
-    Also registers it to node_registry.json
+    Also registers it to node_registry.json.
     
     Args:
         pkg_name (str): pkg_name passed in from CL args
     """
-    pkg_path = CWD / pkg_name
+    abs_pkg_path = CWD / pkg_name
     nested_dirs = ["build", "src", "include", "config", "launch"]
     files = ["CMakelists.txt", "README.md"]
     
-    # TODO: Check if package already exists in cwd
-    
-    # TODO: Check if it already exists in node_registry.json somewhere else
-    
+    # Check if package already exists in cwd
+    if abs_pkg_path.exists() and abs_pkg_path.is_dir():
+        die(f"Package {pkg_name} already exists at {abs_pkg_path.relative_to(REPO_ROOT)}")
+
+    # Check if it already exists in node_registry.json somewhere else
+    data = json.loads(NODE_REG_PATH.read_text())
+    found_pkg = next((node for node in data["nodes"] if node["name"] == pkg_name), None)
+    if found_pkg:
+        die(f"Package: {pkg_name} already exists at '{found_pkg["path"]}'")
+        
+    # Create directories and files    
     for dir in nested_dirs:
-        (pkg_path / dir).mkdir(parents=True)
+        (abs_pkg_path / dir).mkdir(parents=True)
     for file in files:
-        (pkg_path / file).touch()
+        (abs_pkg_path / file).touch()
         
     # TODO: Populate CMakeLists.txt, README.md and create launch and config templates
 
     # TODO: Refactor this to a function?
-    data = json.loads(NODE_REG_PATH.read_text())
     new_entry = {
         "name": pkg_name,
         "type": "rti_dds",
-        "path": str(pkg_path.relative_to(REPO_ROOT)),
+        "path": str(abs_pkg_path.relative_to(REPO_ROOT)),
         "target": "qnx"
     }
     data["nodes"].append(new_entry)
@@ -99,7 +109,7 @@ def pkg_create(pkg_name: str) -> None:
         print(f"An error has occuredL {e}")
 
     print("Package: create success")
-    print(f"Package: '{pkg_name}' created at '{pkg_path.relative_to(REPO_ROOT)}'")
+    print(f"Package: '{pkg_name}' created at '{abs_pkg_path.relative_to(REPO_ROOT)}'")
     print(f"Package: registered in node_registry")
 
 
@@ -110,27 +120,27 @@ def pkg_delete(pkg_name: str) -> None:
     Args:
         pkg_name (str): pkg_name passed in from CL args
     """ 
-    pkg_path = CWD / pkg_name
+    abs_pkg_path = CWD / pkg_name
     
-    if not (pkg_path.exists() and pkg_path.is_dir()):
-        print(f"Package with name: '{pkg_name}' not found in current directory")
-        sys.exit(1)
-    
+    if not (abs_pkg_path.exists() and abs_pkg_path.is_dir()):
+        die(f"Package with name: '{pkg_name}' not found in current directory")
+
     # TODO check if it is a valid Sunswift DDS package from node_registry
     
-    stats = pkg_path.stat()
+    stats = abs_pkg_path.stat()
     print(f"Found Sunswift DDS package: {pkg_name}")
     print(f"Package size (bytes): {stats.st_size}")
     print(f"Created: {datetime.fromtimestamp(stats.st_ctime).strftime("%Y-%m-%d %H:%M:%S")}")
     res = input(f"Do you really want to delete {pkg_name} (y/n): ")
     print("-----")
     if res.lower() == "y":
-        shutil.rmtree(pkg_path)
+        shutil.rmtree(abs_pkg_path)
         print(f"Package: {pkg_name} deleted")
         print(f"Package: {pkg_name} removed from node registry")
     else:
         print("Stopping delete...")
         sys.exit(0)
+         
                 
     
 ### MAIN =======================================================================================
@@ -153,8 +163,7 @@ def main():
     ### Validate package name
     pattern = r"^[a-z0-9_]*$"
     if not re.match(pattern, pkg_name):
-        print("Invalid package name: must be in 'snake_case'")
-        sys.exit(1)
+        die("Invalid package name: must be in 'snake_case'")
         
     ### TODO: SANITY CHECK -> check node_registry.json exists and is in correct path. 
     # check that script is run in repo
