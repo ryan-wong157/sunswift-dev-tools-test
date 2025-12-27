@@ -21,6 +21,7 @@ SRP8-130_EMBD-High_level/
     - libs/
     - domain1_nodes/
         - domain1_node1/
+            - pkg_metadata.json
             - build/
             - src/
             - include/

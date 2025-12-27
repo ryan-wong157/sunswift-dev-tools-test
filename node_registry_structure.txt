@@ -1,4 +1,0 @@
-# Node registry json structure v0.1
-{
-    "nodes": []
-}
