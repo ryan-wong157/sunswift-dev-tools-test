@@ -13,16 +13,18 @@ SRP8-130_EMBD-High_level/
         - ddsctl.sh             # command line interface tool for interacting with DDS nodes
         - launch.sh             # unified launch system (could be python) - uses launch.conf
     - uhhh more things later
+- lib/
+    - dds_types/
+        - bms_types/
+        - standard_types/
+            - Int/
+            - Float32/
+            - Double/               # each type folder contains src, headers, CMakeLists.txt, .idl files
+    - rti_base_node/
 - src/
-    - msg_types/                # this very important directory stores all IDL files and their auto-generated C++ files + headers
-        - idl_files/
-        - msg_src/
-        - msg_include/
-    - libs/
     - domain1_nodes/
         - domain1_node1/
             - pkg_metadata.json
-            - build/
             - src/
             - include/
             - config/
@@ -38,5 +40,5 @@ SRP8-130_EMBD-High_level/
 - launch/
     - launch.config             # could be json, basically a list of all nodes needed to be launched and their launch file locations
     - launch2.config            # perhaps different launch config to test specific subsystem or something
-- build/                        # I'm thinking this could be a staging directory. To be baked directly into the fs
+- build/                        # ALL final binaries and libraries.
     - binaries

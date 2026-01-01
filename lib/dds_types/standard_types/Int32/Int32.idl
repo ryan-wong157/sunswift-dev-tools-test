@@ -1,0 +1,3 @@
+struct {
+    Int32 data;
+};
