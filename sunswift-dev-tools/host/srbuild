@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+
+###############################################################################
+# Sunswift High Level build tool
+# Version: V0.1
+# Date: 7/01/2026
+# Author: Ryan Wong
+#
+# Wrapper around CMake to allow you to intuitevly build all, one, or some targets
+# Also features a "make clean" command
+#
+# Usage:
+#   
+###############################################################################
+
+import argparse
+import sys
+import re
+import shutil
+import subprocess
+from typing import Optional, Tuple
+from pathlib import Path
+
+CWD = Path.cwd()
+# THIS ASSUMES that repo root is 2 directories above this script...
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+### HELPERS =======================================================================================
+def die(msg: str) -> None:
+    print(msg)
+    sys.exit(1)
+    
+def build(targets: Optional[list[str]], all: bool, cores: int):
+    # Always Initialise CMake in /build
+    build_dir_path = REPO_ROOT/"build"
+    cmakelists_path = REPO_ROOT/"CMakeLists.txt"
+    num_cores = f"-j{cores}"
+    
+    # CMakeLists.txt at root MUST exist. Makes build dir if does not exist
+    if not (cmakelists_path.exists() and cmakelists_path.is_file()):
+        die("Build: Root CMakeLists.txt does not exist")
+    if not (build_dir_path.exists() and build_dir_path.is_dir()):
+        build_dir_path.mkdir()
+
+    # Re-init cmake
+    try:
+        subprocess.run([
+            "cmake", "-S", str(REPO_ROOT), "-B", str(build_dir_path),
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        die(f"Build: Error initialising CMake: {e}")
+
+    # Build targets
+    try:
+        if all:
+            subprocess.run([
+                "cmake", "--build", str(build_dir_path), "--", num_cores
+            ], check=True)
+        elif targets is not None:
+            # Uhh loop is probably less efficient, but the alternative is messy
+            # If someone is using --target, build times probably tiny anyway
+            for target in targets:
+                subprocess.run([
+                    "cmake", "--build", str(build_dir_path), "--target", target, "--", num_cores
+                ], check=True)
+    except subprocess.CalledProcessError as e:
+        die(f"Build: Error building targets: {e}")
+
+### MAIN ==========================================================================================
+
+def main():
+    ### Parse command line args
+    parser = argparse.ArgumentParser(
+        description="Sunswift build tool"
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--target", "-t", nargs="+", help="One or more target names")
+    group.add_argument("--clean", action="store_true", help="Delete /bin and /lib, re-initialise CMake")
+    parser.add_argument("--jobs", "-j", default=8, type=int, help="Number of parallel jobs Make runs. Default=8")
+    parser.add_argument("command", nargs="?", choices=["all"], help="Optional command: 'all' to build all targets")
+    args = parser.parse_args()
+    
+    ### Validate commands - it's possible NO cl args are entered
+    if not args.target and not args.clean and not args.command:
+        parser.print_help()
+        sys.exit(1)
+    if args.command == "all" and (args.target or args.clean):
+        die("Command: 'all' cannot be called with --target or --clean")
+    
+    ### Invoke build
+    all_bool = args.command == "all"
+    build(args.target, all_bool, args.jobs)
+
+if __name__ == "__main__":
+    main()
