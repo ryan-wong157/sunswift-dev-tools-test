@@ -40,6 +40,8 @@ from dataclasses import dataclass
 CWD = Path.cwd()
 # THIS ASSUMES that repo root is 2 directories above this script...
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if not (REPO_ROOT/"src").exists() and not (REPO_ROOT/"core").exists():
+    print(f"Error: {__file__} not 2 below repo root")
 
 # All of these are relative to pkg top level
 nested_dirs = {
@@ -61,7 +63,7 @@ class PkgPaths:
     pkg_name: str
     abs_pkg_path: Path
 
-### HELPERS =====================================================================================
+### HELPERS =======================================================================================
 
 def die(msg: str) -> None:
     print(msg)
@@ -85,7 +87,7 @@ def mkdir_package(paths: PkgPaths) -> None:
             with (paths.abs_pkg_path / file).open("w") as json_file:
                 json_file.write("{}")
 
-def fill_readme(paths: PkgPaths) -> bool:
+def fill_readme(paths: PkgPaths) -> None:
     text = f"""# {paths.pkg_name} DDS Package
 
 ## Description
@@ -112,16 +114,16 @@ Written by `Your name here` | `Your zID here`"""
         file.write(text)
         
 # TODO: implement these when i figure out what goes in them
-def fill_cmakelists(path: Path) -> bool:
+def fill_cmakelists(path: Path) -> None:
     pass
 
-def fill_launch(path: Path) -> bool:
+def fill_launch(path: Path) -> None:
     pass
 
-def fill_config(path: Path) -> bool:
+def fill_config(path: Path) -> None:
     pass
 
-def fill_metadata(paths: PkgPaths) -> bool:
+def fill_metadata(paths: PkgPaths) -> None:
     abs_meta_path = paths.abs_pkg_path / files["metadata"]
     data = json.loads(abs_meta_path.read_text())
     data["version"] = 1
@@ -135,7 +137,6 @@ def fill_metadata(paths: PkgPaths) -> bool:
 
 def pkg_exist_elsewhere(paths: PkgPaths) -> tuple[bool, Optional[Path]]:
     """Recursively checks if valid package with the same name exists in the whole repository
-    
     Args:
         paths (PkgPaths): dataclass which stores name and abs path of pkg
     Returns:
@@ -152,7 +153,6 @@ def pkg_exist_elsewhere(paths: PkgPaths) -> tuple[bool, Optional[Path]]:
 def safe_rmdir(paths: PkgPaths) -> None:
     """Absolutely every error check again just to confirm before deletion. 
     In case any bugs in error checking happen before. Then deletes
-        
     Args:
         paths (PkgPaths): dataclass which stores name and abs path of pkg
     """
@@ -180,11 +180,10 @@ def safe_rmdir(paths: PkgPaths) -> None:
     shutil.rmtree(paths.abs_pkg_path)
 
 
-### CORE LOGIC ==================================================================================
+### CORE LOGIC ====================================================================================
 
 def pkg_create(paths: PkgPaths) -> None:
     """Creates directory based on structure in top comment if it doesn't already exist.
-    
     Args:
         paths (PkgPaths): dataclass which stores name and abs path of pkg
     """
@@ -213,7 +212,6 @@ def pkg_create(paths: PkgPaths) -> None:
 
 def pkg_delete(paths: PkgPaths) -> None:
     """Deletes directory with paths.pkg_name if it's in the cwd, and it's a Sunswift DDS pkg
-    
     Args:
         paths (PkgPaths): dataclass which stores name and abs path of pkg
     """     
@@ -268,6 +266,8 @@ def pkg_rename(paths: PkgPaths, new_name: str) -> None:
 
     res = input(f"Do you want to rename '{paths.pkg_name}' to '{new_name}'? (y/n): ")
     if res.lower() == "y":
+        # Handle Pylance possible unbound variable  
+        abs_new_metadata = None
         try:
             # Update metadata file in atomic way
             abs_old_metadata = (paths.abs_pkg_path / files["metadata"])
@@ -281,8 +281,9 @@ def pkg_rename(paths: PkgPaths, new_name: str) -> None:
             # Update package name
             paths.abs_pkg_path.rename(paths.abs_pkg_path.parent / new_name)
         except Exception as e:
-            if abs_new_metadata.exists():
-                abs_new_metadata.unlink()
+            if abs_new_metadata is not None:       
+                if abs_new_metadata.exists():
+                    abs_new_metadata.unlink()
             die(f"Failed to update metadata: {e}")
     else:
         die("Stopping rename...")
@@ -290,7 +291,7 @@ def pkg_rename(paths: PkgPaths, new_name: str) -> None:
     print(f"Successfully renamed '{paths.pkg_name}' to '{new_name}'")
 
 
-### MAIN =======================================================================================
+### MAIN ==========================================================================================
 def main():
     ### Command line arguments
     parser = argparse.ArgumentParser(
@@ -327,6 +328,7 @@ def main():
     try:
         CWD.relative_to(REPO_ROOT/"src")
     except ValueError:
+        # This very bash-like line is a testament to the old pkg_creat.sh :(
         args.create and print("Warning: Packages should be created only in src/")
 
     ### Logic based on flags

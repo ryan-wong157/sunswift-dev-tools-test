@@ -112,8 +112,8 @@ def build(targets: Optional[list[str]], all: bool, cores: int) -> None:
                 subprocess.run([
                     "cmake", "--build", str(build_dir_path), "--target", target, "--", num_cores
                 ], check=True)
-    except subprocess.CalledProcessError as e:
-        die(f"Build: Error building targets: {e}")
+    except subprocess.CalledProcessError:
+        die(f"Build: Error building targets")
     print("=============== Build Complete =================")
     end_time = time.time()
     print(f"Build finished in {end_time-start_time:.4f} seconds")
