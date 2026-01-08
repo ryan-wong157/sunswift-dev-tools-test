@@ -8,9 +8,12 @@
 #
 # Wrapper around CMake to allow you to intuitevly build all, one, or some targets
 # Also features a "make clean" command
-#
+# ONLY allowed to be used within the SRP8-130 high level embedded repository
+# 
 # Usage:
-#   
+#   - srbuild all
+#   - srbuild --target/-t node1 node2 lib1...
+#   - srbuild --clean
 ###############################################################################
 
 import argparse
@@ -151,6 +154,12 @@ def main():
     parser.add_argument("--jobs", "-j", default=8, type=int, help="Number of parallel jobs Make runs. Default=8")
     parser.add_argument("command", nargs="?", choices=["all"], help="Optional command: 'all' to build all targets")
     args = parser.parse_args()
+    
+    ### SANITY CHECK - immediately fail if not used within SRP8-130 High level embedded repository
+    try:
+        CWD.relative_to(REPO_ROOT)
+    except ValueError:
+        die("Error: Script must be run within repository")
     
     ### Validate commands - it's possible NO cl args are entered
     if not args.target and not args.clean and not args.command:

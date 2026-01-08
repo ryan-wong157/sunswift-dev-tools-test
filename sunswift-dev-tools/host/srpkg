@@ -24,7 +24,10 @@
 # launch -> containing one or more launch files
 # 
 # Usage in directory you want to create pkg in:
-#   
+#   - srpkg -c new_pkg
+#   - srpkg -d pkg_to_be_deleted
+#   - srpkg old_pkg -r new_pkg
+#   - srpkg -f pkg_to_be_found
 ###############################################################################
 
 import argparse
