@@ -16,8 +16,10 @@ SRP8-130_EMBD-High_level/
 - core/
     - CmakeLists.txt              # intermediary for dds_types and dds_node
     - dds_types/
-        - bms_types/
+        - README.md                # how to create new types
+        - custom/
             - current/             # one dir here contains one custom type
+                - README.md        # What this type is
                 - current.idl              
                 - current.cxx
                 - current.hxx
@@ -28,7 +30,7 @@ SRP8-130_EMBD-High_level/
             - voltage/
             - bms_types.hpp         # Mass-include header for ALL bms types
             - CMakeLists.txt
-        - std_types/
+        - std/
             - int32/
             - float32/
             - double/               # each type folder contains src, headers, .idl files same as above
