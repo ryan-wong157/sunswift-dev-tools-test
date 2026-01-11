@@ -10,7 +10,7 @@
 # run this script from
 # 
 # <package_name>/
-#     srpkg.json
+#     .srpkg
 #     src/
 #     include/
 #     param/
@@ -21,13 +21,12 @@
 # include -> all your .hpp files
 # param -> json files (probably) for static params
 # 
-# Usage in directory you want to create pkg in:
-#   - srpkg node create bro
-#   - srpkg node info bro
-#   - srpkg node list
+# Usage in directory you want to create package in:
+#   - srpkg create <name>
+# Usage from anywhere in repository
+#   - srpkg info <name>
+#   - srpkg list
 ###############################################################################
-
-# TODO: implement node info and list
 
 import argparse
 import sys
