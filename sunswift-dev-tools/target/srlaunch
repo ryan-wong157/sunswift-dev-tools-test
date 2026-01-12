@@ -9,6 +9,10 @@
 # Node orchestrator which launches all executables according to a root json launch file
 # This script shall live in deploy/ when build is staged, 
 # and it also resolves paths RELATIVE TO deploy/
+#
+# VERSION NOTES:
+# Probably want to pass it a param file as well as path to a log file? so during runtime, 
+# nodes have 0 CWD deps
 # 
 # Usage:
 ###############################################################################
@@ -16,6 +20,7 @@
 import json
 import subprocess
 import sys
+import signal
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Dict, Any
@@ -24,32 +29,81 @@ from typing import Dict, Any
 DEPLOY_ROOT = Path(__file__).resolve().parents[0]
 # if not (DEPLOY_ROOT/"bin").exists() and not (DEPLOY_ROOT/"param").exists():
 #     print(f"Error: {__file__} not in deploy/")
-    
+
+processes = {}
+terminated = {}
 """
 TODO:
 1. Take in the launch file path as a command line argument
 2. find each binary and start it
 """
+
+# =================================================================================================
+# HELPERS
+# =================================================================================================
 def die(msg: str):
     print(msg)
     sys.exit(1)
 
-def launch(launch_path: Path):
+def log(msg: str, level: str):
+    print(f"[srlaunch] [{level}] {msg}")
+
+# =================================================================================================
+# CORE LOGIC
+# =================================================================================================
+
+def launch(launch_path: Path) -> None:
     data = {}
     try:
         with launch_path.open("r") as launch:
             data = json.load(launch)
     except Exception as e:
         die(f"Failed to parse launch file: {e}")
-    
+    print("====================== STARTUP ==========================")
     for node, vals in data.items():
         print(f"Starting node: {node}")
         bin_path = DEPLOY_ROOT / Path(vals["binary"])
         if not bin_path.exists():
-            print(f"Node: {node} with binary: {vals["binary"]} cannot be found")
+            log(f"Node: {node} with binary: {vals["binary"]} cannot be found", "DEBUG")
             continue
-        subprocess.Popen(bin_path)
-        
+
+        processes[node] = subprocess.Popen(
+            [bin_path]
+        )
+    print("====================== LOGGING ==========================")
+
+def shutdown(signum=None, frame=None):
+    print("====================== SHUTDOWN =========================")
+    print("Shutting down all nodes...")
+    for node, proc in processes.items():
+        print(f"Shutting down: {node}")
+        if proc.poll() is None:
+            proc.terminate()
+        else:
+            print(f"Node: {node} has already terminated")
+    sys.exit(0)
+
+def one_loop() -> None:
+    for node, proc in processes.items():
+        if proc.poll() is None:
+            continue
+        else:
+            # NODE HAS TERMINATED
+            log(f"Node {node} has terminated with exit code: {proc.returncode}", "WARN")
+            terminated[node] = proc
+    for node in terminated.keys():
+        try:
+            del processes[node]
+        except KeyError:
+            continue
+
+
+# =================================================================================================
+# MAIN
+# =================================================================================================
+# Register shutdown
+signal.signal(signal.SIGINT, shutdown)
+signal.signal(signal.SIGTERM, shutdown)
 
 def main():
     parser = ArgumentParser()
@@ -57,10 +111,13 @@ def main():
     args = parser.parse_args()
     
     launch_path = DEPLOY_ROOT / Path(args.launch_config_path)
-    # if not launch_path.exists():
-    #     die(f"Error: cannot find launch file at '{launch_path}'")
-        
+    if not launch_path.exists():
+        die(f"Error: cannot find launch file at '{launch_path}'")
+
     launch(launch_path)
+    
+    while(True):
+        one_loop()
 
 if __name__ == "__main__":
     main()
