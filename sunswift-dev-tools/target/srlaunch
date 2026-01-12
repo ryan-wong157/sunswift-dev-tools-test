@@ -2,42 +2,45 @@
 
 ###############################################################################
 # Sunswift High Level dds executable launcher
-# Version: V0.1
+# Version: V1.0
 # Date: 11/01/2026
 # Author: Ryan Wong
 #
 # Node orchestrator which launches all executables according to a root json launch file
-# This script shall live in deploy/ when build is staged, 
+# It outputs all stdout from each process to terminal, and shuts down all nodes when itself dies
+# This script shall live in deploy/ when build is staged,
 # and it also resolves paths RELATIVE TO deploy/
+# 
+# This has massive room for expansion into a full orchestrator, I'll let Seb handle that
 #
 # VERSION NOTES:
 # Probably want to pass it a param file as well as path to a log file? so during runtime, 
 # nodes have 0 CWD deps
 # 
 # Usage:
+#   - srlaunch ./path/to/launch/config.json
 ###############################################################################
 
 import json
 import subprocess
 import sys
 import signal
+import time
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Tuple
 
 # This assumes srlaunch.py is in deploy/
 DEPLOY_ROOT = Path(__file__).resolve().parents[0]
 # if not (DEPLOY_ROOT/"bin").exists() and not (DEPLOY_ROOT/"param").exists():
 #     print(f"Error: {__file__} not in deploy/")
 
-processes = {}
-terminated = {}
-"""
-TODO:
-1. Take in the launch file path as a command line argument
-2. find each binary and start it
-"""
+# Store dict of processes where key is node name as str, value is process handle
+# also store dict of state
+processes:Dict[str, subprocess.Popen] = {}
+is_exited:Dict[str, bool] = {}
 
+    
 # =================================================================================================
 # HELPERS
 # =================================================================================================
@@ -61,41 +64,44 @@ def launch(launch_path: Path) -> None:
         die(f"Failed to parse launch file: {e}")
     print("====================== STARTUP ==========================")
     for node, vals in data.items():
-        print(f"Starting node: {node}")
+        log(f"Starting node: {node}", "INFO")
         bin_path = DEPLOY_ROOT / Path(vals["binary"])
         if not bin_path.exists():
-            log(f"Node: {node} with binary: {vals["binary"]} cannot be found", "DEBUG")
+            log(f"Node: {node} with binary: {vals['binary']} cannot be found", "WARN")
             continue
 
-        processes[node] = subprocess.Popen(
+        processes[node] = (subprocess.Popen(
             [bin_path]
-        )
+        ))
+        is_exited[node] = False
     print("====================== LOGGING ==========================")
 
 def shutdown(signum=None, frame=None):
     print("====================== SHUTDOWN =========================")
-    print("Shutting down all nodes...")
+    log("Shutting down all nodes...", "INFO")
     for node, proc in processes.items():
-        print(f"Shutting down: {node}")
+        log(f"Shutting down: {node}", "INFO")
         if proc.poll() is None:
             proc.terminate()
-        else:
-            print(f"Node: {node} has already terminated")
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
     sys.exit(0)
 
 def one_loop() -> None:
     for node, proc in processes.items():
         if proc.poll() is None:
+            # not shutdown
             continue
         else:
             # NODE HAS TERMINATED
+            if is_exited[node]:
+                # node already marked as exited
+                continue
             log(f"Node {node} has terminated with exit code: {proc.returncode}", "WARN")
-            terminated[node] = proc
-    for node in terminated.keys():
-        try:
-            del processes[node]
-        except KeyError:
-            continue
+            is_exited[node] = True
 
 
 # =================================================================================================
@@ -116,8 +122,10 @@ def main():
 
     launch(launch_path)
     
+    # Check state every 100ms
     while(True):
         one_loop()
+        time.sleep(0.1)
 
 if __name__ == "__main__":
     main()
