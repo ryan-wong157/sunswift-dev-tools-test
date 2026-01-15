@@ -2,18 +2,17 @@
 
 ###############################################################################
 # Sunswift High Level build tool
-# Version: V1.0
+# Version: V2.0
 # Date: 7/01/2026
 # Author: Ryan Wong
 #
-# Wrapper around CMake to allow you to intuitevly build all, one, or some targets
-# Also features a "make clean" command
-# ONLY allowed to be used within the SRP8-130 high level embedded repository
+# Wrapper around CMake to allow you to intuitevly build and install all, one, or some targets
+# 
 # 
 # Usage:
-#   - srbuild --all
-#   - srbuild --target/-t node1 node2 lib1...
-#   - srbuild --clean
+#   - srbuild all
+#   - srbuild target node1 node2 ...
+#   - srbuild clean
 ###############################################################################
 
 import argparse
@@ -43,23 +42,6 @@ def die(msg: str) -> None:
     print(msg)
     sys.exit(1)
     
-def resolve_flags(args: argparse.Namespace) -> str:
-    """Takes in argparse args, returns "build", "install" or "both" depending on flags
-    Used to reduce if statement nesting
-    Args:
-        args (argparse.Namespace): parsed args
-        
-    Returns:
-        str: "build" "install" or "both"
-    """
-    if args.install and not args.build:
-        return "install"
-    if args.build and not args.install:
-        return "build"
-    else:
-        return "both"
-    
-
 def safe_rmdir(path: Path) -> bool:
     """Absolutely every error check again just to confirm before deletion. 
     In case any bugs in error checking happen before. Then deletes specified dir
@@ -122,13 +104,12 @@ def configure_cmake() -> None:
     except subprocess.CalledProcessError as e:
         die(f"Build: Error configuring CMake: {e}")
 
-# TODO: test + maybe refactor to not have to use all bool
-def build(targets: Optional[list[str]], all: bool, jobs: int) -> None:
+
+def build(targets: Optional[list[str]], jobs: int) -> None:
     """Builds one, many or all nodes using number of jobs. Does not install
 
     Args:
-        targets (Optional[list[str]]): list of target names to build
-        all (bool): whether to build all or not
+        targets (Optional[list[str]]): list of target names to build, if None, do all
         jobs (int): number of jobs to run in parallel
     """
     print("============= Building Targets ===============")
@@ -136,12 +117,12 @@ def build(targets: Optional[list[str]], all: bool, jobs: int) -> None:
     start_time = time.time()
     # Build targets
     try:
-        if all:
+        if targets is None:
             print("Build: Building all targets")
             subprocess.run([
                 "cmake", "--build", str(BUILD_DIR_PATH), "-j", jobs_str
             ], check=True)
-        elif targets is not None:
+        else:
             print("Build: Building specified targets")
             # Uhh loop is probably less efficient, but the alternative is messy
             # If someone is using --target, build times probably tiny anyway
@@ -149,8 +130,6 @@ def build(targets: Optional[list[str]], all: bool, jobs: int) -> None:
                 subprocess.run([
                     "cmake", "--build", str(BUILD_DIR_PATH), "--target", target, "--", jobs_str
                 ], check=True)
-        else:
-            die("Build: No targets specified and all not set.")
     except subprocess.CalledProcessError:
         die(f"Build: Error building targets")
     
@@ -158,40 +137,34 @@ def build(targets: Optional[list[str]], all: bool, jobs: int) -> None:
     end_time = time.time()
     print(f"Build finished in {end_time-start_time:.4f} seconds")
 
-# TODO: test + maybe refactor to not have to use all bool
-def install(targets: Optional[list[str]], all: bool) -> None:
+def install(targets: Optional[list[str]]) -> None:
     print("============= Installing Targets ===============")
     start_time = time.time()
     # Install targets
     try:
-        if all:
+        if targets is None:
             print("Install: Installing all targets")
             subprocess.run([
                 "cmake", "--install", str(BUILD_DIR_PATH)
             ], check=True)
-        elif targets is not None:
+        else:
             print("Install: Installing specified targets")
             for target in targets:
                 subprocess.run([
                     "cmake", "--install", str(BUILD_DIR_PATH), "--component", target
                 ], check=True)
-        else:
-            die("Install: No targets specified and all not set.")
+
+        # No matter what, always install runtime tools
+        subprocess.run([
+            "cmake", "--install", str(BUILD_DIR_PATH), "--component", "tools"
+        ], check=True)
     except subprocess.CalledProcessError:
         die(f"Build: Error building targets")
+
     
     print("=============== Install Complete =================")
     end_time = time.time()
     print(f"Install finished in {end_time-start_time:.4f} seconds")
-
-
-
-    print("============= Installing Complete ==============")
-    pass
-
-
-def do_all():
-    pass
 
 def clean() -> None:
     """Deletes build/ from repo root."""
@@ -210,18 +183,23 @@ def clean() -> None:
 
     print("============== Clean Complete ================")
 
+def build_all(jobs: int) -> None:
+    """Wrapper combining all 3 helpers"""
+    configure_cmake()
+    build(None, jobs)
+    install(None)
+    
+def build_target(targets: list[str], jobs: int) -> None:
+    """Wrapper combining all 3 helpers"""
+    configure_cmake()
+    build(targets, jobs)
+    install(targets)
 
 # =================================================================================================
 # MAIN
 # =================================================================================================
 
-"""
-NEW CLI
-srbuild all 
-srbuild node node1, node2, node3
-srbuild clean -> this should delete build/ NOT deploy
-if no --build and --install flags, automatically does both
-"""
+
 def main():
     ### Parse command line args
     parser = argparse.ArgumentParser(
@@ -229,17 +207,15 @@ def main():
     )
 
     common_flags = argparse.ArgumentParser(add_help=False)
-    common_flags.add_argument("--build", "-b", action="store_true", help="Only build the targets, do not install")
-    common_flags.add_argument("--install", "-i", action="store_true", help="Installs already built targets, fails if not built")
     common_flags.add_argument("--jobs", "-j", default=8, type=int, help="Number of parallel jobs Make runs. Default=8")
     
     level1_junction = parser.add_subparsers(dest="command", required=True)
     command_all = level1_junction.add_parser("all", parents=[common_flags], help="Build and install all targets")
     command_clean = level1_junction.add_parser("clean", help="Delete the build directory, but NOT deploy/")
-    command_node = level1_junction.add_parser("node", parents=[common_flags], help="Select specific nodes to build and install")
-    command_node.add_argument("targets", nargs="+", help="One or more node target names")
+    command_target = level1_junction.add_parser("target", parents=[common_flags], help="Select specific nodes to build and install")
+    command_target.add_argument("targets", nargs="+", help="One or more node target names")
     args = parser.parse_args() 
-        
+
     ### SANITY CHECK - immediately fail if not used within SRP8-130 High level embedded repository
     try:
         CWD.relative_to(REPO_ROOT)
@@ -247,12 +223,11 @@ def main():
         die("Error: Script must be run within repository")
 
     if args.command == "all":
-        flag = resolve_flags(args)
-        
+        build_all(args.jobs)
+    elif args.command == "target":
+        build_target(args.targets, args.jobs)
     elif args.command == "clean":
         clean()
-    elif args.command == "node":
-        pass
 
 if __name__ == "__main__":
     main()
