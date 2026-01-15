@@ -7,7 +7,7 @@ It includes:
 
 - `srpkg`: DDS package creation and management tool  
 - `srbuild`: Build tool for compiling and deploying DDS packages  
-- `srlaunch`: (WORK IN PROGRESS) Tool for starting nodes
+- `srlaunch`: Tool for starting nodes
 - `srdds`: (WORK IN PROGRESS) Tool for managing active nodes
 
 ## Getting Started
@@ -19,7 +19,7 @@ To make `srpkg` and `srbuild` available globally:
 ```bash
 export PATH="$PATH:<absolute_path_to_repo>/sunswift-dev-tools/host"
 ```
-Recommend adding this to your .bashrc
+I recommend adding this to your .bashrc
 ### 2. Using srpkg
 
 `srpkg` is a tool for creating and managing DDS packages. It must be run from within the repository.
@@ -62,25 +62,22 @@ srpkg list
 `srbuild` is a wrapper around CMake that simplifies building DDS packages and targets. It must be run from within the repository, but can be used from anywhere, not necessarily root.
 
 #### Output:
-`srbuild` automatically creates or overwrites root level `build/` `deploy/` and `lib/` directories. It outputs all static libraries into `lib/`, all user executables to `deploy/bin/`, and CMake-required files in `build/`.
+`srbuild` automatically creates or overwrites root level `build/` and `deploy/` directories. It builds all objects, libraries and binaries into `build/` (don't bother touching this, it's needed for CMake), then installs all runtime files into `deploy/` for easy deployment (use this).
 ```
 SR-Mjolnir/
 ├── build/          # CMake-required files
-├── deploy/         # Package metadata file
+├── deploy/
 │     ├─ bin/       # Node executables
 │     ├─ param/
-│     └─ logs/       
-├── lib/            # Static libraries
+│     └─ tools/     # srlaunch, srdds
 └── ...
 ```
 #### Building all targets:
 
-To build all available targets in the repository:
+To build and install all available targets in the repository:
 
 ```bash
-srbuild --all
-# or
-srbuild -a
+srbuild all
 ```
 
 #### Building specific targets:
@@ -88,30 +85,32 @@ srbuild -a
 To build only specific packages or libraries:
 
 ```bash
-srbuild --target package1 package2 lib1
-# or
-srbuild -t package1 package2 lib1
+srbuild target node1 node2 ...
 ```
 This automatically builds dependencies if required.
 #### Cleaning the build:
 
-To clean the build directory and re-initialize CMake:
+To delete the build directory:
 
 ```bash
-srbuild --clean
+srbuild clean
 ```
-
-This will delete the `/deploy`, `/build` and `/lib` directories and reset the build configuration.
 
 #### Parallel jobs:
 
 By default, `srbuild` uses 8 parallel jobs for compilation. You can customize this:
 
 ```bash
-srbuild --all --jobs 4
-srbuild -t package1 -j 16
+srbuild all --jobs 4
+srbuild target package1 -j 16
 ```
-
+## Using srlaunch
+Run `srlaunch` from the `deploy/tools` directory only. The version in the submodule repo is for version control.
+```bash
+srlaunch all
+srlaunch target node1 node2
+```
+It's that easy guys
 ## Example Workflow
 
 1. Create a new DDS package:
@@ -122,28 +121,26 @@ srbuild -t package1 -j 16
 
 2. Add your source code to `my_dds_node/src/` and headers to `my_dds_node/include/`
 
+3. Fill out the template CMakeLists.txt
+
 3. Add `add_subdirectory(my_dds_node)` to src/CMakeLists.txt to enable the build
 
 4. Build the package:
    ```bash
-   srbuild -t my_dds_node
+   srbuild target my_dds_node
    # or
-   srbuild --all
+   srbuild all
    ```
 
 5. Add the binary and config locations (in deploy/) to `launch/launch_config.json`
-
-6. Run the executable (from repo root):
-   ```bash
-   ./deploy/bin/my_dds_node
-   ```
 
 ## Notes
 
 - Both tools must be run from within the SR-Mjolnir repository
 - `srpkg` creates packages in the current working directory
 - `srbuild` operates on the entire repository build system
-- `srlaunch` and `srdds` are currently work in progress
+- `srlaunch` is used from the deploy directory
+- `srdds` is currently work in progress
 
 ## Contributors
 Ryan Wong || z5417983

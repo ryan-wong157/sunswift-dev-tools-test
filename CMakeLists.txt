@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # global tools always needed during install
 install(
-    FILES sunswift-dev-tools/target/srlaunch launch/launch_config.json
+    PROGRAMS sunswift-dev-tools/target/srlaunch
     DESTINATION tools
     COMPONENT tools
 )

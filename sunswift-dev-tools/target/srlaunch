@@ -2,23 +2,22 @@
 
 ###############################################################################
 # Sunswift High Level dds executable launcher
-# Version: V1.0
+# Version: V1.1
 # Date: 11/01/2026
 # Author: Ryan Wong
 #
-# Node orchestrator which launches all executables according to a json launch file
-# It outputs all stdout from each process to terminal, and shuts down all nodes when itself dies
-# This script shall live in deploy/ when build is staged,
-# and it also resolves paths RELATIVE TO deploy/
+# Node "orchestrator" which launches all or some executables located in deploy/bin
+# It outputs all stdout/err from each process to terminal, 
+# and shuts down all nodes when itself dies
 # 
 # This has massive room for expansion into a full orchestrator, I'll let Seb handle that
 #
-# VERSION NOTES:
-# Probably want to pass processes a param file as well as path to a log file? so during runtime, 
-# nodes have 0 CWD deps
-# 
+# FUTURE VERSION NOTES:
+# Probably want to pass processes a param file as well as path to a log file during startup? 
+#  
 # Usage:
-#   - srlaunch ./path/to/launch/config.json
+#   - srlaunch all
+#   - srlaunch target node1 node2
 ###############################################################################
 
 import json
@@ -28,12 +27,14 @@ import signal
 import time
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional
 
-# This assumes srlaunch.py is in deploy/
-DEPLOY_ROOT = Path(__file__).resolve().parents[0]
-# if not (DEPLOY_ROOT/"bin").exists() and not (DEPLOY_ROOT/"param").exists():
-#     print(f"Error: {__file__} not in deploy/")
+# This assumes srlaunch.py is in deploy/tools/ (it needs to know where bin is)
+DEPLOY_ROOT = Path(__file__).resolve().parents[1]
+BIN_PATH = DEPLOY_ROOT/"bin"
+
+if not (DEPLOY_ROOT/"bin").exists() and not (DEPLOY_ROOT/"param").exists():
+    print(f"Error: {__file__} not in deploy/tools directory")
 
 # Store dict of processes where key is node name as str, value is process handle
 # also store dict of state
@@ -46,7 +47,7 @@ is_exited:Dict[str, bool] = {}
 # =================================================================================================
 def die(msg: str):
     """Kills script and prints out message"""
-    print(msg)
+    print(f"[srlaunch] [ERROR] {msg}")
     sys.exit(1)
 
 def log(msg: str, level: str):
@@ -57,31 +58,46 @@ def log(msg: str, level: str):
 # CORE LOGIC
 # =================================================================================================
 
-def launch(launch_path: Path) -> None:
+def launch(targets: Optional[list]) -> None:
     """Launches all nodes by opening subprocesses, 
     keeps track of process handles in "processes" array
 
     Args:
-        launch_path (Path): absolute path to launch file
+        targets (Optional[list]): list of target node names, or None for all
     """
-    data = {}
-    try:
-        with launch_path.open("r") as launch:
-            data = json.load(launch)
-    except Exception as e:
-        die(f"Failed to parse launch file: {e}")
-    print("====================== STARTUP ==========================")
-    for node, vals in data.items():
-        log(f"Starting node: {node}", "INFO")
-        bin_path = DEPLOY_ROOT / Path(vals["binary"])
-        if not bin_path.exists():
-            log(f"Node: {node} with binary: {vals['binary']} cannot be found", "WARN")
-            continue
+    if not BIN_PATH.exists() or not BIN_PATH.is_dir():
+       die(f"Binaies directory: {BIN_PATH} not found, aborting")
 
-        processes[node] = (subprocess.Popen(
-            [bin_path]
-        ))
-        is_exited[node] = False
+    # list of Path objects
+    binaries = [f for f in BIN_PATH.iterdir() if f.is_file()]
+
+    print("====================== STARTUP ==========================")
+    if targets is None:
+        for bin in binaries:
+            name = str(bin.relative_to(BIN_PATH))
+            log(f"Starting node: {name}", "INFO")
+            if not bin.exists():
+                log(f"Node: {name} with binary: {bin} cannot be found", "WARN")
+                continue
+
+            processes[name] = (subprocess.Popen(
+                [bin]
+            ))
+            is_exited[name] = False
+    else:
+        for name in targets:
+            bin = BIN_PATH/name
+            log(f"Starting node: {name}", "INFO")
+            if not bin.exists():
+                log(f"Node: {name} with binary: {bin} cannot be found", "WARN")
+                continue
+
+            processes[str(name)] = (subprocess.Popen(
+                [bin]
+            ))
+            is_exited[name] = False
+    if len(processes) == 0:
+        die("No processes were successful in starting :(")
     print("====================== LOGGING ==========================")
 
 def shutdown(signum=None, frame=None):
@@ -89,8 +105,8 @@ def shutdown(signum=None, frame=None):
     print("====================== SHUTDOWN =========================")
     log("Shutting down all nodes...", "INFO")
     for node, proc in processes.items():
-        log(f"Shutting down: {node}", "INFO")
         if proc.poll() is None:
+            log(f"Shutting down: {node}", "INFO")
             proc.terminate()
             try:
                 proc.wait(timeout=3)
@@ -111,6 +127,8 @@ def one_loop() -> None:
                 continue
             log(f"Node {node} has terminated with exit code: {proc.returncode}", "WARN")
             is_exited[node] = True
+    if all(is_exited.values()):
+        shutdown()
 
 
 # =================================================================================================
@@ -122,14 +140,18 @@ signal.signal(signal.SIGTERM, shutdown)
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("launch_config_path", help="")
+    
+    level1_junction = parser.add_subparsers(dest="command", required=True)
+    command_all = level1_junction.add_parser("all", help="Launch all nodes in deploy/bin")
+    command_target = level1_junction.add_parser("target", help="Launch specfieid nodes in deploy/bin")
+    command_target.add_argument("targets", nargs="+", help="One or more binary node names")
     args = parser.parse_args()
     
-    launch_path = DEPLOY_ROOT / Path(args.launch_config_path)
-    if not launch_path.exists():
-        die(f"Error: cannot find launch file at '{launch_path}'")
-
-    launch(launch_path)
+    if args.command == "all":
+        launch(None)
+    elif args.command == "target":
+        launch(args.targets)
+        
     
     # Check state every 100ms
     while(True):
