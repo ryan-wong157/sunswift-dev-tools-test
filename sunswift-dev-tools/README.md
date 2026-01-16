@@ -1,4 +1,4 @@
-# Sunswift Dev Tools V1.0.1
+# Sunswift Dev Tools V1.1.0
 
 This repository contains high-level development tools for Sunswift embedded and DDS projects. It is separated into host/ and target/. host/ contains the dev tools we are using during development time on our host machines. target/ contains scripts that should be run on the target (NVIDIA Drive THOR computer). It is intended to be a submodule in the SR-Mjolnir repository.
 
